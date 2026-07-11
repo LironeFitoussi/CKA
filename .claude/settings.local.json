@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(nerdctl version *)",
+      "Bash(systemctl status *)",
+      "Bash(systemctl --user status containerd)",
+      "Bash(nerdctl ps *)",
+      "Read(//run/containerd/**)",
+      "Read(//etc/nerdctl/**)",
+      "Read(//home/**)",
+      "Bash(getent passwd *)",
+      "Read(//run/user/1000/containerd-rootless/**)",
+      "Bash(sudo -u lirone XDG_RUNTIME_DIR=/run/user/1000 CONTAINERD_ADDRESS=/run/user/1000/containerd-rootless/containerd.sock nerdctl --address /run/user/1000/containerd-rootless/containerd.sock ps -a)",
+      "Read(//etc/containerd/**)",
+      "Bash(find / -xdev -iname \"nerdctl.toml\")",
+      "Read(//etc/systemd/system/**)",
+      "Bash(sudo -u lirone -i bash -c 'nerdctl ps -a')",
+      "Bash(nerdctl start *)",
+      "Bash(timeout 15 nerdctl stop redis)",
+      "Bash(echo \"exit code: $?\")",
+      "Bash(sudo -u lirone env XDG_RUNTIME_DIR=/run/user/1000 HOME=/home/lirone nerdctl ps -a)",
+      "Bash(sudo -u lirone env XDG_RUNTIME_DIR=/run/user/1000 HOME=/home/lirone nerdctl ps -a --format '{{.Names}}')",
+      "Bash(sudo -u lirone env XDG_RUNTIME_DIR=/run/user/1000 HOME=/home/lirone nerdctl stop redis)",
+      "Bash(loginctl show-user *)",
+      "Read(//proc/10050/**)",
+      "Read(//etc/**)",
+      "Bash(machinectl)",
+      "Bash(loginctl list-sessions *)"
+    ]
+  }
+}

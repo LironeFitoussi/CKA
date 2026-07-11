@@ -254,6 +254,13 @@ rm buildkit-v${BUILDKIT_VER}.linux-amd64.tar.gz
 
 ## 7. Test it
 
+Always use `sudo nerdctl` (not plain `nerdctl`) for this rootful setup. If
+`nerdctl` can't reach the rootful socket for any reason, it can silently
+bootstrap a separate **rootless** containerd under your user account instead
+of erroring out — leaving you with two independent containerd stacks running
+side by side. See the note in "Full cleanup" below for how to detect and
+remove that if it happens.
+
 Run a container in the background.
 
 ```bash
@@ -297,7 +304,36 @@ sudo nerdctl run -d --name redis redis:alpine
 
 ## Full cleanup (start over from scratch)
 
-Remove any running/stopped containers first.
+> **Check for rootless mode first.** If `nerdctl` ever ran without a reachable
+> rootful socket, it can silently bootstrap its own **rootless** containerd —
+> a second, independent stack living under your user account
+> (`~/.local/share/nerdctl`, `~/.local/share/containerd`, a `containerd.service`
+> under `systemctl --user`, and extra binaries like `containerd-rootless.sh`,
+> `ctr-remote`, `nerdctl.gomodjail` in `/usr/local/bin`). If you skip this and
+> only clean up the rootful stack below, that rootless copy keeps running and
+> the next `nerdctl` install downloads a different version on top of it,
+> leaving you with two containerd daemons and duplicate binaries.
+>
+> Check for it:
+>
+> ```bash
+> systemctl --user status containerd 2>&1 | head -5
+> ps aux | grep -E 'rootlesskit|containerd-rootless' | grep -v grep
+> ```
+>
+> If that shows anything running, tear it down first:
+>
+> ```bash
+> nerdctl rm -f $(nerdctl ps -aq) 2>/dev/null
+> containerd-rootless-setuptool.sh uninstall
+> systemctl --user disable --now containerd
+> rm -f ~/.config/systemd/user/containerd.service
+> systemctl --user daemon-reload
+> rm -rf ~/.local/share/nerdctl ~/.local/share/containerd ~/.config/nerdctl ~/.config/containerd
+> rm -rf /run/user/"$(id -u)"/containerd-rootless
+> ```
+
+Remove any running/stopped containers first (rootful).
 
 ```bash
 sudo nerdctl rm -f $(sudo nerdctl ps -aq)
@@ -333,10 +369,27 @@ Remove the CNI plugins directory.
 sudo rm -rf /opt/cni
 ```
 
-Remove every binary installed in this tutorial.
+Remove every binary that may exist in `/usr/local/bin` — this includes the
+core set from this tutorial plus the extras that show up if `nerdctl` ever
+pulled in the "full" bundle or bootstrapped rootless mode.
 
 ```bash
-sudo rm -f /usr/local/bin/containerd /usr/local/bin/containerd-shim-runc-v2 /usr/local/bin/containerd-stress /usr/local/bin/ctr /usr/local/bin/runc /usr/local/bin/nerdctl /usr/local/bin/buildctl /usr/local/bin/buildkitd /usr/local/bin/buildkit-*
+sudo rm -f /usr/local/bin/containerd \
+           /usr/local/bin/containerd-shim-runc-v2 \
+           /usr/local/bin/containerd-stress \
+           /usr/local/bin/containerd-fuse-overlayfs-grpc \
+           /usr/local/bin/containerd-stargz-grpc \
+           /usr/local/bin/containerd-rootless.sh \
+           /usr/local/bin/containerd-rootless-setuptool.sh \
+           /usr/local/bin/ctr \
+           /usr/local/bin/ctr-enc \
+           /usr/local/bin/ctr-remote \
+           /usr/local/bin/runc \
+           /usr/local/bin/nerdctl \
+           /usr/local/bin/nerdctl.gomodjail \
+           /usr/local/bin/buildctl \
+           /usr/local/bin/buildkitd \
+           /usr/local/bin/buildkit-*
 ```
 
 Verify everything is gone — these should print nothing / "No such file or directory".
@@ -348,3 +401,12 @@ which containerd ctr nerdctl runc buildctl buildkitd
 ```bash
 ls /etc/containerd /opt/cni /var/lib/containerd
 ```
+
+```bash
+systemctl status containerd 2>&1 | head -3
+systemctl --user status containerd 2>&1 | head -3
+ps aux | grep -E 'containerd|rootlesskit|buildkitd' | grep -v grep
+```
+
+The last three should show `inactive`/`could not be found` for both services
+and no matching processes.
