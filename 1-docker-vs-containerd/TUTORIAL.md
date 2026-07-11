@@ -4,9 +4,6 @@ This is the full, working install path for running containers with `containerd` 
 `nerdctl` directly, without Docker. It covers every piece that's actually required —
 including the two that are easy to miss: the `containerd` systemd service and `runc`.
 
-Scripts in this folder (`install.sh`, `ctr.sh`, `nerdctl.sh`) download the binaries
-below; this tutorial adds the missing setup steps and explains why each one exists.
-
 ## What you need, and why
 
 | Component    | Role                                                              |
@@ -25,20 +22,51 @@ other tool reports a successful install.
 
 ## 1. Install containerd
 
+Set the version once so every command below can reference it.
+
 ```bash
 CONTAINERD_VER="2.3.0"
-wget https://github.com/containerd/containerd/releases/download/v${CONTAINERD_VER}/containerd-${CONTAINERD_VER}-linux-amd64.tar.gz
-sudo tar Cxzvf /usr/local containerd-${CONTAINERD_VER}-linux-amd64.tar.gz
-rm containerd-${CONTAINERD_VER}-linux-amd64.tar.gz
+```
 
-export PATH=$PATH:/usr/local/bin   # add to ~/.bashrc to persist
+Download the release tarball.
+
+```bash
+wget https://github.com/containerd/containerd/releases/download/v${CONTAINERD_VER}/containerd-${CONTAINERD_VER}-linux-amd64.tar.gz
+```
+
+Extract it into `/usr/local` — this lays down `/usr/local/bin/{containerd,ctr,...}`.
+
+```bash
+sudo tar Cxzvf /usr/local containerd-${CONTAINERD_VER}-linux-amd64.tar.gz
+```
+
+Remove the tarball, it's no longer needed.
+
+```bash
+rm containerd-${CONTAINERD_VER}-linux-amd64.tar.gz
+```
+
+Make sure `/usr/local/bin` is on your `PATH` (add this line to `~/.bashrc` to persist it across shells).
+
+```bash
+export PATH=$PATH:/usr/local/bin
+```
+
+Confirm the binary works.
+
+```bash
 ctr --version
 ```
 
-Generate the default config:
+Create the config directory containerd expects.
 
 ```bash
 sudo mkdir -p /etc/containerd
+```
+
+Generate the default config file into place.
+
+```bash
 containerd config default | sudo tee /etc/containerd/config.toml
 ```
 
@@ -52,13 +80,34 @@ and every `nerdctl`/`ctr` command will fail with:
 FATA[0000] cannot access containerd socket "/run/containerd/containerd.sock": no such file or directory
 ```
 
+Download the official systemd unit file.
+
 ```bash
-curl -fsSL https://raw.githubusercontent.com/containerd/containerd/main/containerd.service \
-  -o /tmp/containerd.service
+curl -fsSL https://raw.githubusercontent.com/containerd/containerd/main/containerd.service -o /tmp/containerd.service
+```
+
+Install it where systemd looks for unit files.
+
+```bash
 sudo cp /tmp/containerd.service /etc/systemd/system/containerd.service
+```
+
+Reload systemd so it picks up the new unit file.
+
+```bash
 sudo systemctl daemon-reload
+```
+
+Enable it (start on boot) and start it now, in one step.
+
+```bash
 sudo systemctl enable --now containerd
-sudo systemctl status containerd   # should show "active (running)"
+```
+
+Confirm it's active — you should see `active (running)`.
+
+```bash
+sudo systemctl status containerd
 ```
 
 ## 3. Install runc
@@ -71,49 +120,149 @@ FATA[0009] failed to create shim task: OCI runtime create failed: ...
 exec: "runc" executable file not found in $PATH
 ```
 
+Set the version.
+
 ```bash
 RUNC_VER="1.5.0"
+```
+
+Download the `runc` binary directly (it ships as a single static binary, no tarball).
+
+```bash
 wget https://github.com/opencontainers/runc/releases/download/v${RUNC_VER}/runc.amd64
+```
+
+Install it into `/usr/local/bin` with the executable bit set.
+
+```bash
 sudo install -m 755 runc.amd64 /usr/local/bin/runc
+```
+
+Remove the downloaded file.
+
+```bash
 rm runc.amd64
+```
+
+Confirm it works.
+
+```bash
 runc --version
 ```
 
 ## 4. Install nerdctl
 
+Set the version.
+
 ```bash
 NERDCTL_VER="2.3.4"
+```
+
+Download the release tarball.
+
+```bash
 wget https://github.com/containerd/nerdctl/releases/download/v${NERDCTL_VER}/nerdctl-${NERDCTL_VER}-linux-amd64.tar.gz
+```
+
+Extract just the `nerdctl` binary from the tarball.
+
+```bash
 tar -xvf nerdctl-${NERDCTL_VER}-linux-amd64.tar.gz nerdctl
+```
+
+Move it into your `PATH`.
+
+```bash
 sudo mv nerdctl /usr/local/bin/
+```
+
+Remove the tarball.
+
+```bash
 rm nerdctl-${NERDCTL_VER}-linux-amd64.tar.gz
+```
+
+Confirm it works.
+
+```bash
 nerdctl --version
 ```
 
 ## 5. Install CNI plugins (container networking)
 
+Set the version.
+
 ```bash
 CNI_VER="1.9.1"
+```
+
+Download the release tarball.
+
+```bash
 wget https://github.com/containernetworking/plugins/releases/download/v${CNI_VER}/cni-plugins-linux-amd64-v${CNI_VER}.tgz
+```
+
+Create the directory containerd's CNI config points to.
+
+```bash
 sudo mkdir -p /opt/cni/bin
+```
+
+Extract all the plugin binaries there.
+
+```bash
 sudo tar -C /opt/cni/bin -xzf cni-plugins-linux-amd64-v${CNI_VER}.tgz
+```
+
+Remove the tarball.
+
+```bash
 rm cni-plugins-linux-amd64-v${CNI_VER}.tgz
 ```
 
 ## 6. Install buildkit (optional, needed for `nerdctl build`)
 
+Set the version.
+
 ```bash
 BUILDKIT_VER="0.31.1"
+```
+
+Download the release tarball.
+
+```bash
 wget https://github.com/moby/buildkit/releases/download/v${BUILDKIT_VER}/buildkit-v${BUILDKIT_VER}.linux-amd64.tar.gz
+```
+
+Extract it — this creates a local `bin/` folder with `buildctl`, `buildkitd`, etc.
+
+```bash
 tar -xvf buildkit-v${BUILDKIT_VER}.linux-amd64.tar.gz
+```
+
+Move all the extracted binaries into your `PATH`.
+
+```bash
 sudo mv bin/* /usr/local/bin/
+```
+
+Remove the tarball.
+
+```bash
 rm buildkit-v${BUILDKIT_VER}.linux-amd64.tar.gz
 ```
 
 ## 7. Test it
 
+Run a container in the background.
+
 ```bash
 sudo nerdctl run -d --name redis redis:alpine
+```
+
+List running containers to confirm it's up.
+
+```bash
 sudo nerdctl ps
 ```
 
@@ -126,10 +275,15 @@ FATA[0000] name-store error
 name "redis" is already used by ID "..."
 ```
 
-Clean it up first, then retry:
+Remove the leftover name/ID before retrying.
 
 ```bash
 sudo nerdctl rm -f redis
+```
+
+Then retry the run.
+
+```bash
 sudo nerdctl run -d --name redis redis:alpine
 ```
 
@@ -140,3 +294,57 @@ sudo nerdctl run -d --name redis redis:alpine
 | `cannot access containerd socket ... no such file or directory` | containerd daemon isn't running | Install + start the systemd service (step 2) |
 | `exec: "runc" executable file not found in $PATH` | `runc` not installed | Install `runc` (step 3) |
 | `name "X" is already used by ID "..."` | Leftover container object from a prior failed run | `sudo nerdctl rm -f X` |
+
+## Full cleanup (start over from scratch)
+
+Remove any running/stopped containers first.
+
+```bash
+sudo nerdctl rm -f $(sudo nerdctl ps -aq)
+```
+
+Stop and disable the systemd service.
+
+```bash
+sudo systemctl disable --now containerd
+```
+
+Remove the systemd unit file.
+
+```bash
+sudo rm -f /etc/systemd/system/containerd.service
+```
+
+Reload systemd so it forgets the removed unit.
+
+```bash
+sudo systemctl daemon-reload
+```
+
+Remove containerd's data, runtime, and config directories.
+
+```bash
+sudo rm -rf /var/lib/containerd /run/containerd /etc/containerd
+```
+
+Remove the CNI plugins directory.
+
+```bash
+sudo rm -rf /opt/cni
+```
+
+Remove every binary installed in this tutorial.
+
+```bash
+sudo rm -f /usr/local/bin/containerd /usr/local/bin/containerd-shim-runc-v2 /usr/local/bin/containerd-stress /usr/local/bin/ctr /usr/local/bin/runc /usr/local/bin/nerdctl /usr/local/bin/buildctl /usr/local/bin/buildkitd /usr/local/bin/buildkit-*
+```
+
+Verify everything is gone — these should print nothing / "No such file or directory".
+
+```bash
+which containerd ctr nerdctl runc buildctl buildkitd
+```
+
+```bash
+ls /etc/containerd /opt/cni /var/lib/containerd
+```
