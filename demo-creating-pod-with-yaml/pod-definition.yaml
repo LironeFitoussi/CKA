@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: myapp-pod
+  labels: 
+    app: myapp
+    # costcenter: amer
+    # location: NA
+spec:
+  containers:
+    - name: nginx-costcenter
+      image: nginx:1.14.2
+    #   ports: 
+    #     - containerPorts: 80
+    
+    # - name: backend-costcenter
+    #   image: redis
